@@ -49,7 +49,7 @@ public final class PingListener {
                 builder.samplePlayers(players.getSample()));
 
         builder.version(existingVersion);
-        builder.favicon(existingFavicon.orElse(null));
+        existingFavicon.ifPresent(builder::favicon);
 
         String motdTemplate = config.motd();
         if (!motdTemplate.isBlank()) {
