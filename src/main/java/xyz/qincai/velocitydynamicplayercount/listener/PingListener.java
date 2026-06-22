@@ -4,12 +4,10 @@ import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.proxy.ProxyPingEvent;
 import com.velocitypowered.api.proxy.server.ServerPing;
 import com.velocitypowered.api.util.Favicon;
-import com.velocitypowered.api.util.GameProfile;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import xyz.qincai.velocitydynamicplayercount.config.PluginConfig;
 
-import java.util.List;
 import java.util.Optional;
 
 public final class PingListener {
@@ -33,11 +31,8 @@ public final class PingListener {
 
         ServerPing.Version existingVersion = ping.getVersion();
         Optional<ServerPing.Players> existingPlayers = ping.getPlayers();
-        Optional<Component> existingDescription = ping.getDescriptionComponent();
+        Component existingDescription = ping.getDescriptionComponent();
         Optional<Favicon> existingFavicon = ping.getFavicon();
-        List<GameProfile> samplePlayers = existingPlayers
-                .map(ServerPing.Players::getSample)
-                .orElse(List.of());
 
         int online = existingPlayers.map(p -> p.getOnline()).orElse(0);
         int max;
@@ -49,7 +44,9 @@ public final class PingListener {
 
         builder.onlinePlayers(online);
         builder.maximumPlayers(max);
-        builder.samplePlayers(samplePlayers);
+
+        existingPlayers.ifPresent(players ->
+                builder.samplePlayers(players.getSample()));
 
         builder.version(existingVersion);
         builder.favicon(existingFavicon.orElse(null));
@@ -61,8 +58,8 @@ public final class PingListener {
                     .replace("%max%", String.valueOf(max));
             Component motd = legacyToComponent(formatted);
             builder.description(motd);
-        } else {
-            existingDescription.ifPresent(builder::description);
+        } else if (existingDescription != null) {
+            builder.description(existingDescription);
         }
 
         String versionOverride = config.versionOverride();

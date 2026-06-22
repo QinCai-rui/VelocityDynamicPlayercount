@@ -50,7 +50,7 @@ public final class VelocityDynamicPlayercount {
     public void onProxyInitialize(ProxyInitializeEvent event) {
         logger.info("========================================");
         logger.info("VelocityDynamicPlayercount v{}",
-                containerDescription().getVersion().orElse("unknown"));
+                containerDescription().getDescription().getVersion().orElse("unknown"));
         logger.info("========================================");
 
         if (!config.load()) {
