@@ -2,21 +2,27 @@ package xyz.qincai.velocitydynamicplayercount.listener;
 
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.proxy.ProxyPingEvent;
+import com.velocitypowered.api.network.ProtocolVersion;
+import com.velocitypowered.api.proxy.InboundConnection;
 import com.velocitypowered.api.proxy.server.ServerPing;
 import com.velocitypowered.api.util.Favicon;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
+import org.slf4j.Logger;
 import xyz.qincai.velocitydynamicplayercount.config.PluginConfig;
 
+import java.net.InetSocketAddress;
 import java.util.Optional;
 
 public final class PingListener {
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
 
     private final PluginConfig config;
+    private final Logger logger;
 
-    public PingListener(PluginConfig config) {
+    public PingListener(PluginConfig config, Logger logger) {
         this.config = config;
+        this.logger = logger;
     }
 
     @Subscribe
@@ -24,6 +30,19 @@ public final class PingListener {
         String mode = config.mode();
         if ("disabled".equalsIgnoreCase(mode)) {
             return;
+        }
+
+        if (config.pingLogging()) {
+            InboundConnection conn = event.getConnection();
+            InetSocketAddress remote = conn.getRemoteAddress();
+            String ip = remote != null ? remote.getAddress().getHostAddress() : "unknown";
+            int port = remote != null ? remote.getPort() : 0;
+            String host = conn.getVirtualHost()
+                    .map(InetSocketAddress::toString)
+                    .orElse("unknown");
+            ProtocolVersion proto = conn.getProtocolVersion();
+            logger.info("Ping from {}:{} (host: {}) protocol: {} ({})",
+                    ip, port, host, proto, proto.getProtocol());
         }
 
         ServerPing ping = event.getPing();
@@ -49,7 +68,12 @@ public final class PingListener {
                 builder.samplePlayers(players.getSample()));
 
         builder.version(existingVersion);
-        existingFavicon.ifPresent(builder::favicon);
+        Favicon configFavicon = config.favicon();
+        if (configFavicon != null) {
+            builder.favicon(configFavicon);
+        } else {
+            existingFavicon.ifPresent(builder::favicon);
+        }
 
         String motdTemplate = config.motd();
         if (!motdTemplate.isBlank()) {

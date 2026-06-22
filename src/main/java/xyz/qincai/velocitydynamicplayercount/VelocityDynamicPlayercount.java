@@ -37,7 +37,7 @@ public final class VelocityDynamicPlayercount {
 
         Path pluginJar = findPluginJar();
         this.updateChecker = new UpdateChecker(container, config, proxy.getScheduler(), logger, dataDirectory, pluginJar);
-        this.pingListener = new PingListener(config);
+        this.pingListener = new PingListener(config, logger);
     }
 
     private static Path findPluginJar() {

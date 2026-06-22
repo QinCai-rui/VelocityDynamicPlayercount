@@ -1,7 +1,7 @@
 # VelocityDynamicPlayercount Configuration
 # Controls how player counts appear on the server list ping
 
-config-version: 1
+config-version: 2
 
 # Mode for calculating max players shown on the ping
 # - "current-plus-one": shows p/p+1 where p is current playercount
@@ -20,6 +20,15 @@ motd: ""
 # Leave empty to keep default. Use placeholders: %current%, %max%, %version%
 # Example: "Velocity 1.21.4 (%current% players)"
 version-override: ""
+
+# Log incoming ping events with connection details (remote address, virtual host, protocol version)
+# Logged at INFO level
+ping-logging: false
+
+# Custom favicon (server list icon)
+# Supports local file paths or URLs (http://, https://)
+# Auto-resizes any image to 64x64 PNG. Omit or set to "" to keep the server's existing favicon.
+favicon: ""
 
 update-checker:
   enabled: true

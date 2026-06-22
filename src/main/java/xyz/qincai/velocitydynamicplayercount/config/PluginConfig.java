@@ -1,22 +1,30 @@
 package xyz.qincai.velocitydynamicplayercount.config;
 
+import com.velocitypowered.api.util.Favicon;
+
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.imageio.ImageIO;
+
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.DumperOptions;
 
 public final class PluginConfig {
     private static final String CONFIG_FILE_NAME = "config.yml";
-    private static final int CONFIG_VERSION = 1;
+    private static final int CONFIG_VERSION = 2;
 
     private final Path dataDirectory;
     private final org.slf4j.Logger logger;
@@ -25,6 +33,10 @@ public final class PluginConfig {
     private volatile int fixedMaxPlayers;
     private volatile String motd;
     private volatile String versionOverride;
+
+    private volatile String faviconSource;
+    private volatile Favicon favicon;
+    private volatile boolean pingLogging;
 
     private volatile boolean updateCheckerEnabled;
     private volatile boolean autoDownload;
@@ -70,6 +82,9 @@ public final class PluginConfig {
             fixedMaxPlayers = getInt(config, "fixed-max-players", 100);
             motd = getString(config, "motd", "");
             versionOverride = getString(config, "version-override", "");
+            faviconSource = getString(config, "favicon", "");
+            favicon = loadFavicon();
+            pingLogging = getBoolean(config, "ping-logging", false);
 
             Object ucRaw = config.getOrDefault("update-checker", Map.of());
             Map<String, Object> uc = ucRaw instanceof Map ? (Map<String, Object>) ucRaw : Map.of();
@@ -179,6 +194,38 @@ public final class PluginConfig {
     public int fixedMaxPlayers() { return fixedMaxPlayers; }
     public String motd() { return motd; }
     public String versionOverride() { return versionOverride; }
+    public Favicon favicon() { return favicon; }
+    public boolean pingLogging() { return pingLogging; }
+
+    private Favicon loadFavicon() {
+        if (faviconSource.isBlank()) return null;
+        try {
+            BufferedImage image;
+            if (faviconSource.startsWith("http://") || faviconSource.startsWith("https://")) {
+                image = ImageIO.read(new URL(faviconSource));
+            } else {
+                Path resolved = dataDirectory.resolve(faviconSource);
+                image = ImageIO.read(resolved.toFile());
+            }
+
+            if (image == null) {
+                logger.warn("Failed to read favicon from {}", faviconSource);
+                return null;
+            }
+
+            BufferedImage resized = new BufferedImage(64, 64, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = resized.createGraphics();
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.drawImage(image, 0, 0, 64, 64, null);
+            g.dispose();
+
+            return Favicon.create(resized);
+        } catch (Exception e) {
+            logger.error("Failed to load favicon from {}: {}", faviconSource, e.getMessage());
+            return null;
+        }
+    }
+
     public boolean updateCheckerEnabled() { return updateCheckerEnabled; }
     public boolean autoDownload() { return autoDownload; }
     public long intervalMinutes() { return intervalMinutes; }
