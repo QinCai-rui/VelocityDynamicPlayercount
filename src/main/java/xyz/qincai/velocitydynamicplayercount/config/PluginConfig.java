@@ -14,17 +14,15 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.imageio.ImageIO;
 
 import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.DumperOptions;
 
 public final class PluginConfig {
     private static final String CONFIG_FILE_NAME = "config.yml";
-    private static final int CONFIG_VERSION = 2;
 
     private final Path dataDirectory;
     private final org.slf4j.Logger logger;
@@ -67,14 +65,12 @@ public final class PluginConfig {
 
             Map<String, Object> config = (Map<String, Object>) raw;
 
-            int fileVersion = getInt(config, "config-version", 0);
-            if (fileVersion < CONFIG_VERSION) {
-                logger.info("Config version {} is outdated (latest {}), upgrading...", fileVersion, CONFIG_VERSION);
-                upgradeConfig(configFile);
+            if (upgradeConfig(configFile, config)) {
                 try (InputStream in2 = new FileInputStream(configFile)) {
-                    raw = yaml.load(in2);
-                    if (!(raw instanceof Map)) return false;
-                    config = (Map<String, Object>) raw;
+                    Object raw2 = yaml.load(in2);
+                    if (raw2 instanceof Map) {
+                        config = (Map<String, Object>) raw2;
+                    }
                 }
             }
 
@@ -105,6 +101,136 @@ public final class PluginConfig {
         load();
     }
 
+    @SuppressWarnings("unchecked")
+    private boolean upgradeConfig(File configFile, Map<String, Object> userConfig) {
+        String defaultText;
+        try (InputStream in = getClass().getClassLoader().getResourceAsStream(CONFIG_FILE_NAME)) {
+            if (in == null) return false;
+            defaultText = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            return false;
+        }
+
+        Map<String, Object> defaultMap;
+        try {
+            defaultMap = new Yaml().load(defaultText);
+        } catch (Exception e) {
+            return false;
+        }
+        if (defaultMap == null) return false;
+
+        List<String> defaultLines = List.of(defaultText.split("\n", -1));
+        StringBuilder toAppend = new StringBuilder();
+
+        for (Map.Entry<String, Object> entry : defaultMap.entrySet()) {
+            String key = entry.getKey();
+            if (userConfig.containsKey(key)) {
+                if (entry.getValue() instanceof Map defaultSub
+                        && userConfig.get(key) instanceof Map userSub) {
+                    for (Map.Entry<String, Object> subEntry : defaultSub.entrySet()) {
+                        if (!userSub.containsKey(subEntry.getKey())) {
+                            String block = extractIndentedBlock(defaultLines, key, subEntry.getKey());
+                            if (block != null) {
+                                toAppend.append('\n').append(block);
+                            }
+                        }
+                    }
+                }
+                continue;
+            }
+            String block = extractBlock(defaultLines, key);
+            if (block != null) {
+                toAppend.append('\n').append(block);
+            }
+        }
+
+        if (toAppend.isEmpty()) return false;
+
+        try (FileWriter writer = new FileWriter(configFile, StandardCharsets.UTF_8, true)) {
+            writer.write(toAppend.toString());
+            logger.info("Added new config options to config.yml");
+            return true;
+        } catch (IOException e) {
+            logger.warn("Failed to upgrade config.yml: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    private static String extractBlock(List<String> lines, String topKey) {
+        int keyIdx = -1;
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i);
+            if (!line.isEmpty() && !Character.isWhitespace(line.charAt(0)) && line.contains(":")) {
+                String lineKey = line.substring(0, line.indexOf(':')).trim();
+                if (lineKey.equals(topKey)) {
+                    keyIdx = i;
+                    break;
+                }
+            }
+        }
+        if (keyIdx == -1) return null;
+
+        int start = keyIdx;
+        while (start > 0) {
+            String prev = lines.get(start - 1);
+            if (prev.isBlank() || prev.startsWith("#")) {
+                start--;
+            } else {
+                break;
+            }
+        }
+
+        int end = keyIdx + 1;
+        while (end < lines.size()) {
+            String cur = lines.get(end);
+            if (cur.isEmpty() || cur.startsWith(" ") || cur.startsWith("\t") || cur.startsWith("#")) {
+                end++;
+            } else {
+                break;
+            }
+        }
+
+        return String.join("\n", lines.subList(start, end));
+    }
+
+    private static String extractIndentedBlock(List<String> lines, String parentKey, String subKey) {
+        int start = -1;
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i);
+            if (!line.isEmpty() && !Character.isWhitespace(line.charAt(0)) && line.contains(":")) {
+                String lineKey = line.substring(0, line.indexOf(':')).trim();
+                if (lineKey.equals(parentKey)) {
+                    int j = i + 1;
+                    while (j < lines.size() && (lines.get(j).startsWith(" ") || lines.get(j).startsWith("\t") || lines.get(j).isBlank() || lines.get(j).startsWith("#"))) {
+                        String trimmed = lines.get(j).trim();
+                        if (trimmed.contains(":") && !trimmed.startsWith("#")) {
+                            String foundKey = trimmed.substring(0, trimmed.indexOf(':')).trim();
+                            if (foundKey.equals(subKey)) {
+                                start = j;
+                                break;
+                            }
+                        }
+                        j++;
+                    }
+                    break;
+                }
+            }
+        }
+        if (start == -1) return null;
+
+        int end = start + 1;
+        while (end < lines.size()) {
+            String cur = lines.get(end);
+            if (cur.isBlank() || cur.startsWith("#") || cur.startsWith("  ") || cur.startsWith("\t")) {
+                end++;
+            } else {
+                break;
+            }
+        }
+
+        return String.join("\n", lines.subList(start, end));
+    }
+
     private void saveDefaultConfig(File configFile) {
         if (!configFile.getParentFile().exists()) {
             configFile.getParentFile().mkdirs();
@@ -116,55 +242,6 @@ public final class PluginConfig {
             }
         } catch (IOException e) {
             logger.error("Failed to create default config: {}", e.getMessage());
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private void upgradeConfig(File configFile) throws IOException {
-        InputStream bundled = getClass().getClassLoader().getResourceAsStream(CONFIG_FILE_NAME);
-        if (bundled == null) {
-            logger.warn("Cannot upgrade config: bundled resource not found");
-            return;
-        }
-
-        Yaml yaml = new Yaml();
-
-        Map<String, Object> current;
-        try (InputStream in = new FileInputStream(configFile)) {
-            Object raw = yaml.load(in);
-            current = raw instanceof Map ? (Map<String, Object>) raw : new HashMap<>();
-        }
-        Map<String, Object> defaults = yaml.load(bundled);
-
-        if (defaults == null) return;
-
-        mergeDefaults(current, defaults);
-        current.put("config-version", CONFIG_VERSION);
-
-        DumperOptions dumperOptions = new DumperOptions();
-        dumperOptions.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
-        dumperOptions.setIndent(2);
-        dumperOptions.setPrettyFlow(true);
-        Yaml outYaml = new Yaml(dumperOptions);
-
-        try (FileWriter writer = new FileWriter(configFile, StandardCharsets.UTF_8)) {
-            outYaml.dump(current, writer);
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private void mergeDefaults(Map<String, Object> current, Map<String, Object> defaults) {
-        for (Map.Entry<String, Object> entry : defaults.entrySet()) {
-            String key = entry.getKey();
-            Object defaultValue = entry.getValue();
-            if (!current.containsKey(key)) {
-                current.put(key, defaultValue);
-            } else if (defaultValue instanceof Map && current.get(key) instanceof Map) {
-                mergeDefaults(
-                        (Map<String, Object>) current.get(key),
-                        (Map<String, Object>) defaultValue
-                );
-            }
         }
     }
 

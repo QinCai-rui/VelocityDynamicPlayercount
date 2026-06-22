@@ -1,8 +1,6 @@
 # VelocityDynamicPlayercount Configuration
 # Controls how player counts appear on the server list ping
 
-config-version: 2
-
 # Mode for calculating max players shown on the ping
 # - "current-plus-one": shows p/p+1 where p is current playercount
 # - "fixed": max = a fixed value you set below
