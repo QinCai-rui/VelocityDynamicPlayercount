@@ -125,11 +125,11 @@ public final class PluginConfig {
         for (Map.Entry<String, Object> entry : defaultMap.entrySet()) {
             String key = entry.getKey();
             if (userConfig.containsKey(key)) {
-                if (entry.getValue() instanceof Map defaultSub
-                        && userConfig.get(key) instanceof Map userSub) {
-                    for (Map.Entry<String, Object> subEntry : defaultSub.entrySet()) {
+                if (entry.getValue() instanceof Map<?, ?> defaultSub
+                        && userConfig.get(key) instanceof Map<?, ?> userSub) {
+                    for (Map.Entry<?, ?> subEntry : defaultSub.entrySet()) {
                         if (!userSub.containsKey(subEntry.getKey())) {
-                            String block = extractIndentedBlock(defaultLines, key, subEntry.getKey());
+                            String block = extractIndentedBlock(defaultLines, key, (String) subEntry.getKey());
                             if (block != null) {
                                 toAppend.append('\n').append(block);
                             }
