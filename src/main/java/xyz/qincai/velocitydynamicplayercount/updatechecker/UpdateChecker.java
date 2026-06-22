@@ -22,7 +22,11 @@ public final class UpdateChecker {
     private static final Pattern TAG_NAME_PATTERN = Pattern.compile("\\\"tag_name\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
     private static final Pattern HTML_URL_PATTERN = Pattern.compile("\\\"html_url\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
     private static final Pattern ASSET_DOWNLOAD_URL_PATTERN = Pattern.compile("\\\"browser_download_url\\\"\\s*:\\s*\\\"([^\\\"]+\\.jar)\\\"");
-    private static final String UPDATE_JAR_NAME = "VelocityDynamicPlayercount.jar";
+    private static final String JAR_PREFIX = "VelocityDynamicPlayercount-";
+
+    private static String updateJarName(String version) {
+        return JAR_PREFIX + version + ".jar";
+    }
 
     private final PluginContainer container;
     private final PluginConfig config;
@@ -149,10 +153,11 @@ public final class UpdateChecker {
             state = new State(updateAvailable, currentVersion, latestVersion, downloadUrl, null);
 
             if (updateAvailable) {
-                File targetFile = pluginsDir.resolve(UPDATE_JAR_NAME).toFile();
+                String updateJar = updateJarName(latestVersion);
+                File targetFile = pluginsDir.resolve(updateJar).toFile();
 
                 if (targetFile.exists()) {
-                    cleanOldPluginJars();
+                    cleanOldPluginJars(updateJar);
                     logger.info("{} update ({}) is already downloaded and pending restart.", pluginId, latestVersion);
                     return UpdateResult.UPDATE_DOWNLOADED;
                 } else {
@@ -195,9 +200,10 @@ public final class UpdateChecker {
 
     private boolean downloadUpdate(String url, String version) {
         try {
-            File targetFile = pluginsDir.resolve(UPDATE_JAR_NAME).toFile();
+            String updateJar = updateJarName(version);
+            File targetFile = pluginsDir.resolve(updateJar).toFile();
 
-            cleanOldPluginJars();
+            cleanOldPluginJars(updateJar);
 
             HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                     .header("User-Agent", pluginId + "-Updater")
@@ -225,11 +231,11 @@ public final class UpdateChecker {
         }
     }
 
-    private void cleanOldPluginJars() {
+    private void cleanOldPluginJars(String excludeUpdateJar) {
         String currentJarName = pluginJar != null ? pluginJar.getFileName().toString() : null;
         File[] oldFiles = pluginsDir.toFile().listFiles((dir, name) ->
-                name.startsWith("VelocityDynamicPlayercount-") && name.endsWith(".jar")
-                        && !name.equals(UPDATE_JAR_NAME)
+                name.startsWith(JAR_PREFIX) && name.endsWith(".jar")
+                        && !name.equals(excludeUpdateJar)
                         && !name.equals(currentJarName));
         if (oldFiles == null) {
             return;
