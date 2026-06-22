@@ -23,6 +23,19 @@ public final class VelocityPlayercountCommand implements SimpleCommand {
         this.updateChecker = updateChecker;
     }
 
+    private static final String PERM_ADMIN = "velocitydynamicplayercount.admin";
+
+    @Override
+    public boolean hasPermission(Invocation invocation) {
+        String[] args = invocation.arguments();
+        if (args.length == 0) return true;
+        return switch (args[0].toLowerCase()) {
+            case "help", "status" -> true;
+            case "reload", "update" -> invocation.source().hasPermission(PERM_ADMIN);
+            default -> true;
+        };
+    }
+
     @Override
     public void execute(Invocation invocation) {
         CommandSource source = invocation.source();
