@@ -114,6 +114,8 @@ public final class UpdateChecker {
     }
 
     private UpdateResult checkNow() {
+        cleanOldPluginJars("");
+
         String apiUrl = config.apiUrl();
         if (apiUrl == null || apiUrl.isBlank()) {
             return UpdateResult.ERROR;
