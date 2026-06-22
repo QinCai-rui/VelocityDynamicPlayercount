@@ -22,26 +22,29 @@ public final class UpdateChecker {
     private static final Pattern TAG_NAME_PATTERN = Pattern.compile("\\\"tag_name\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
     private static final Pattern HTML_URL_PATTERN = Pattern.compile("\\\"html_url\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
     private static final Pattern ASSET_DOWNLOAD_URL_PATTERN = Pattern.compile("\\\"browser_download_url\\\"\\s*:\\s*\\\"([^\\\"]+\\.jar)\\\"");
+    private static final String UPDATE_JAR_NAME = "VelocityDynamicPlayercount.jar";
 
     private final PluginContainer container;
     private final PluginConfig config;
     private final Scheduler scheduler;
     private final Logger logger;
-    private final Path dataDirectory;
+    private final Path pluginsDir;
+    private final Path pluginJar;
     private final HttpClient httpClient;
-    private final String pluginName;
+    private final String pluginId;
 
     private volatile ScheduledTask scheduledTask;
     private volatile State state = State.none();
 
-    public UpdateChecker(PluginContainer container, PluginConfig config, Scheduler scheduler, Logger logger, Path dataDirectory) {
+    public UpdateChecker(PluginContainer container, PluginConfig config, Scheduler scheduler, Logger logger, Path dataDirectory, Path pluginJar) {
         this.container = container;
         this.config = config;
         this.scheduler = scheduler;
         this.logger = logger;
-        this.dataDirectory = dataDirectory;
+        this.pluginsDir = pluginJar != null ? pluginJar.getParent() : dataDirectory.getParent();
+        this.pluginJar = pluginJar;
         this.httpClient = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build();
-        this.pluginName = container.getDescription().getName().orElse("VelocityDynamicPlayercount");
+        this.pluginId = container.getDescription().getId();
     }
 
     public void start() {
@@ -121,7 +124,7 @@ public final class UpdateChecker {
         try {
             HttpRequest request = HttpRequest.newBuilder(URI.create(apiUrl))
                     .header("Accept", "application/vnd.github+json")
-                    .header("User-Agent", pluginName + "-UpdateChecker")
+                    .header("User-Agent", pluginId + "-UpdateChecker")
                     .timeout(Duration.ofMillis(timeoutMillis))
                     .GET()
                     .build();
@@ -146,16 +149,15 @@ public final class UpdateChecker {
             state = new State(updateAvailable, currentVersion, latestVersion, downloadUrl, null);
 
             if (updateAvailable) {
-                File updateFolder = dataDirectory.resolve("updates").toFile();
-                File targetFile = new File(updateFolder, pluginName + "-" + latestVersion + ".jar");
+                File targetFile = pluginsDir.resolve(UPDATE_JAR_NAME).toFile();
 
                 if (targetFile.exists()) {
-                    cleanOldUpdateFiles(latestVersion);
-                    logger.info("{} update ({}) is already downloaded and pending restart.", pluginName, latestVersion);
+                    cleanOldPluginJars();
+                    logger.info("{} update ({}) is already downloaded and pending restart.", pluginId, latestVersion);
                     return UpdateResult.UPDATE_DOWNLOADED;
                 } else {
                     logger.warn("New {} version available: {} -> {}",
-                            pluginName, currentVersion, latestVersion);
+                            pluginId, currentVersion, latestVersion);
 
                     if (autoDownload) {
                         String assetUrl = findFirstGroup(ASSET_DOWNLOAD_URL_PATTERN, body);
@@ -169,7 +171,7 @@ public final class UpdateChecker {
                     return UpdateResult.UPDATE_AVAILABLE;
                 }
             } else {
-                logger.info("{} is up-to-date ({})", pluginName, currentVersion);
+                logger.info("{} is up-to-date ({})", pluginId, currentVersion);
                 return UpdateResult.UP_TO_DATE;
             }
         } catch (IOException | InterruptedException ex) {
@@ -193,18 +195,12 @@ public final class UpdateChecker {
 
     private boolean downloadUpdate(String url, String version) {
         try {
-            File updateFolder = dataDirectory.resolve("updates").toFile();
-            cleanOldUpdateFiles(version);
+            File targetFile = pluginsDir.resolve(UPDATE_JAR_NAME).toFile();
 
-            if (!updateFolder.exists() && !updateFolder.mkdirs()) {
-                logger.warn("Could not create update folder.");
-                return false;
-            }
-
-            Path targetFile = new File(updateFolder, pluginName + "-" + version + ".jar").toPath();
+            cleanOldPluginJars();
 
             HttpRequest request = HttpRequest.newBuilder(URI.create(url))
-                    .header("User-Agent", pluginName + "-Updater")
+                    .header("User-Agent", pluginId + "-Updater")
                     .timeout(Duration.ofMinutes(1))
                     .GET()
                     .build();
@@ -213,13 +209,13 @@ public final class UpdateChecker {
 
             HttpResponse<Path> response = httpClient.send(
                     request,
-                    HttpResponse.BodyHandlers.ofFile(targetFile)
+                    HttpResponse.BodyHandlers.ofFile(targetFile.toPath())
             );
 
             boolean success = response.statusCode() >= 200 && response.statusCode() < 300;
 
             if (success) {
-                logger.info("Update downloaded successfully to {}! It will be applied on the next server restart.", targetFile);
+                logger.info("Update downloaded successfully to {}! It will be applied on the next server restart.", targetFile.getAbsolutePath());
             }
 
             return success;
@@ -229,25 +225,20 @@ public final class UpdateChecker {
         }
     }
 
-    private void cleanOldUpdateFiles(String keepVersion) {
-        File updateFolder = dataDirectory.resolve("updates").toFile();
-        if (!updateFolder.exists()) {
-            return;
-        }
-        File[] oldFiles = updateFolder.listFiles((dir, name) ->
-                name.startsWith(pluginName + "-") && name.endsWith(".jar"));
+    private void cleanOldPluginJars() {
+        String currentJarName = pluginJar != null ? pluginJar.getFileName().toString() : null;
+        File[] oldFiles = pluginsDir.toFile().listFiles((dir, name) ->
+                name.startsWith("VelocityDynamicPlayercount-") && name.endsWith(".jar")
+                        && !name.equals(UPDATE_JAR_NAME)
+                        && !name.equals(currentJarName));
         if (oldFiles == null) {
             return;
         }
         for (File oldFile : oldFiles) {
-            String name = oldFile.getName();
-            if (name.equals(pluginName + "-" + keepVersion + ".jar")) {
-                continue;
-            }
             if (oldFile.delete()) {
-                logger.info("Deleted old update file: {}", name);
+                logger.info("Deleted old plugin jar: {}", oldFile.getName());
             } else {
-                logger.warn("Failed to delete old update file: {}", name);
+                logger.warn("Failed to delete old plugin jar: {}", oldFile.getName());
             }
         }
     }

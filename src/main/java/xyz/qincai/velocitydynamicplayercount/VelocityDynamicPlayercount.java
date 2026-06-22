@@ -4,7 +4,6 @@ import com.google.inject.Inject;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
-import com.velocitypowered.api.plugin.Plugin;
 import com.velocitypowered.api.plugin.PluginContainer;
 import com.velocitypowered.api.plugin.annotation.DataDirectory;
 import com.velocitypowered.api.proxy.ProxyServer;
@@ -14,16 +13,9 @@ import xyz.qincai.velocitydynamicplayercount.config.PluginConfig;
 import xyz.qincai.velocitydynamicplayercount.listener.PingListener;
 import xyz.qincai.velocitydynamicplayercount.updatechecker.UpdateChecker;
 
+import java.net.URISyntaxException;
 import java.nio.file.Path;
 
-@Plugin(
-        id = "velocitydynamicplayercount",
-        name = "VelocityDynamicPlayercount",
-        version = "1.0.0",
-        description = "Allows Velocity to show a dynamic playercount on server list ping",
-        authors = {"QinCai-rui"},
-        url = "https://github.com/QinCai-rui/VelocityDynamicPlayercount"
-)
 public final class VelocityDynamicPlayercount {
 
     private final ProxyServer proxy;
@@ -42,8 +34,24 @@ public final class VelocityDynamicPlayercount {
         this.proxy = proxy;
         this.logger = logger;
         this.config = new PluginConfig(dataDirectory, logger);
-        this.updateChecker = new UpdateChecker(container, config, proxy.getScheduler(), logger, dataDirectory);
+
+        Path pluginJar = findPluginJar();
+        this.updateChecker = new UpdateChecker(container, config, proxy.getScheduler(), logger, dataDirectory, pluginJar);
         this.pingListener = new PingListener(config);
+    }
+
+    private static Path findPluginJar() {
+        try {
+            return Path.of(
+                    VelocityDynamicPlayercount.class
+                            .getProtectionDomain()
+                            .getCodeSource()
+                            .getLocation()
+                            .toURI()
+            );
+        } catch (URISyntaxException e) {
+            return null;
+        }
     }
 
     @Subscribe
