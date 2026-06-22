@@ -1,0 +1,29 @@
+# VelocityDynamicPlayercount Configuration
+# Controls how player counts appear on the server list ping
+
+config-version: 1
+
+# Mode for calculating max players shown on the ping
+# - "current-plus-one": shows p/p+1 where p is current playercount
+# - "fixed": max = a fixed value you set below
+# - "disabled": does not modify the ping response
+mode: "current-plus-one"
+
+# Only used when mode is "fixed"
+fixed-max-players: 100
+
+# Custom MOTD with placeholders (leave empty to keep server's existing MOTD)
+# Available placeholders: %current%, %max%
+motd: ""
+
+# Override the server version string shown in the server list
+# Leave empty to keep default. Use placeholders: %current%, %max%, %version%
+# Example: "Velocity 1.21.4 (%current% players)"
+version-override: ""
+
+update-checker:
+  enabled: true
+  auto-download: true
+  interval-minutes: 60
+  api-url: "https://api.github.com/repos/QinCai-rui/VelocityDynamicPlayercount/releases/latest"
+  timeout-millis: 10000

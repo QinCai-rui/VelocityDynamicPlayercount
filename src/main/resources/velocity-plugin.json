@@ -1,0 +1,9 @@
+{
+    "id": "velocitydynamicplayercount",
+    "name": "VelocityDynamicPlayercount",
+    "version": "${project.version}",
+    "description": "${project.description}",
+    "authors": ["QinCai-rui"],
+    "website": "https://github.com/QinCai-rui/VelocityDynamicPlayercount",
+    "main": "xyz.qincai.velocitydynamicplayercount.VelocityDynamicPlayercount"
+}
